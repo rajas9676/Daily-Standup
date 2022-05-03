@@ -5,7 +5,9 @@ Complete repository can be found at https://github.com/rajas9676/Daily-Standup
 import argparse
 import boto3
 import logging
+import os
 from botocore.exceptions import ClientError
+from spark_scripts.min_temp import process_file
 
 
 class S3ClientBasics:
@@ -45,11 +47,37 @@ class S3ResourceBasics:
         print('Avilable:', *[b.name for b in self.s3_resource.buckets.all()], sep="\t")
 
     def delete_bucket(self):
-        client = boto3.client('s3')
+        print('Deleting the bucket & contents.....')
+        my_bucket = self.s3_resource.Bucket(self.bucket_name)
         try:
-            client.delete_bucket(Bucket=self.bucket_name)
+            my_bucket.objects.all().delete()
+            my_bucket.delete()
         except ClientError as e:
-            print(e['Error']['Message'])
+            logging.error(e)
+            return False
+        return True
+
+    def upload_file_to_s3(self, file_name):
+        print('uploading file to S3......')
+        try:
+            self.s3_resource.meta.client.upload_file(file_name, Bucket=self.bucket_name, Key=file_name)
+        except ClientError as e:
+            logging.error(e)
+            return False
+        return True
+
+    def process_file_from_s3(self):
+        print('---------spark script running---------')
+        try:
+            my_bucket = self.s3_resource.Bucket(self.bucket_name)
+            for file in my_bucket.objects.filter(Prefix='dataset').all():
+                key = file.key
+                body = file.get()['Body'].read()
+                process_file(key)
+        except ClientError as e:
+            logging.error(e)
+            return False
+        return True
 
 
 if __name__ == "__main__":
@@ -61,8 +89,9 @@ if __name__ == "__main__":
         resource = S3ResourceBasics(s3_resource, args.bucket_name)
         resource.create_bucket()
         resource.list_buckets()
+        resource.upload_file_to_s3('dataset/temp_readings.csv')
+        resource.process_file_from_s3()
         resource.delete_bucket()
         resource.list_buckets()
     except ClientError:
         print('error creating object')
-
