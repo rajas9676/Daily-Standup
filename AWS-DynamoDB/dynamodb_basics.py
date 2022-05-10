@@ -46,6 +46,22 @@ class Movies:
         except ClientError as e:
             raise logger.error(e.response['Error']['Message'])
 
+    def add_movie(self, title, year, plot, rating):
+        try:
+            self.table.put_item(Item =
+                                {'year': year,
+                                 'title':title,
+                                 'info':{'plot': plot, 'rating': Decimal(str(rating))}})
+        except ClientError as e:
+            raise logger.error(e)
+
+    def get_movie(self, title, year):
+        try:
+            response = self.table.get_item(Key={'year':year, 'title':title})
+        except ClientError as e:
+            raise logger.error(e)
+        return response['Item']
+
     def delete_table(self):
         try:
             self.table.delete()
@@ -78,5 +94,7 @@ if __name__ == "__main__":
         print('===>copying contents from the file')
         movies.write_batch('moviedata.json')
     else:
+        result = movies.get_movie(title='Rush', year=2013)
+        print(result)
         movies.delete_table()
         print('table deleted successfully:')
